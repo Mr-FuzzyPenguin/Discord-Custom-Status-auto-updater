@@ -72,14 +72,14 @@ def message_generate(message, emoji_symbol, presence_choice, expiry=False, custo
     four_hours_from_now = all_time_control(4*HOUR)
     half_hour_from_now = all_time_control(0.5*HOUR)
     # midnight of next day
-    midnight = (specific_time_control(now.year, now.month, now.day+1, 0, 0, 0, 0))
 
+    midnight = (specific_time_control(now.year, now.month, now.day+1, 0, 0, 0, 0))
     expiry_table={
         "hour" : hour_from_now,
         "four hours" : four_hours_from_now,
         "half hour" : half_hour_from_now,
         "midnight" : midnight,
-        "custom" : None if not custom_expiry else specific_time_control(*custom_expiry)
+        "custom" : None if not custom_expiry else specific_time_control(*custom_expiry) if len(custom_expiry) != 1 else all_time_control(*custom_expiry)
     }
 
     # print(hour_from_now)
@@ -108,5 +108,5 @@ def message_generate(message, emoji_symbol, presence_choice, expiry=False, custo
 
 
 # DEBUG
-print(message_generate("Hello World!", ":penguin:", "dnd", "custom", [2023, 5, 11, 1, 42, 48, 0]))
+# print(message_generate("Hello World!", ":penguin:", "dnd", "custom", [5]))
 # WhEKBQoDZG5kEggKABoE8J+Qpw==

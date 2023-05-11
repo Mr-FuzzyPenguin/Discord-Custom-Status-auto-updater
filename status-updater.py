@@ -13,7 +13,7 @@ from time import sleep
 directory = "/home/penguin/Desktop/discord-password/SHENANIGANS!/"
 
 # Token
-with open(directory + "token2", "r") as f:
+with open(directory + "token", "r") as f:
     token = f.read().replace("\n", "")
 
 # print() becomes silenced
@@ -53,7 +53,7 @@ while True:
     # [["custom" [2023, 05, 11, 03, 14, 15, 09]]] # expires at a specific time!
     # [["hour", None]] # will expire 1 hour from time of patch. Second item set to None.
     # [["four hours", None]] # four hours expiry
-    time = [["four hours", None] for _ in range(len(messages))]
+    time = [[None, None] for _ in range(len(messages))]
 
     for message, emoji, expiry in zip(messages, emojis, time):
         # Required headers

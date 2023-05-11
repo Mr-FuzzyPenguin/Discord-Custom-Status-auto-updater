@@ -64,7 +64,7 @@ git clone https://github.com/Mr-FuzzyPenguin/Discord-Custom-Status-auto-updater.
 pip install -r requirements.txt
 ```
 Then, make sure that you have [python 3.11](https://www.python.org/downloads/release/python-3113/) or higher.
-Too lazy to search for it? Here are the links:
+Too lazy to search for it? Here are the links:  
 [Windows python 3.11.3](https://www.python.org/ftp/python/3.11.3/python-3.11.3-amd64.exe)  
 [macOS python 3.11.3](https://www.python.org/ftp/python/3.11.3/python-3.11.3-macos11.pkg)  
 [Linux python 3.11.3](https://www.python.org/ftp/python/3.11.3/Python-3.11.3.tar.xz) (This is not recommended. Use a package manager or try compiling it yourself).  

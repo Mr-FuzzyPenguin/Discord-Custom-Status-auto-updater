@@ -8,23 +8,16 @@ import emoji
 import time
 from datetime import datetime, timedelta
 
-# Check python version!
-import sys
-
-if sys.version_info[0:2] != (3, 11):
-    raise Exception("This module requires python 3.11!")
-
-
 def message_generate(
     message, emoji_symbol, presence_choice, expiry=False, custom_expiry=False
 ):
     ## Useful hex-functions:
 
-    # Converts a string to its hexadecimal representation, return str.
-    convert_string_to_hex = lambda text: text.encode("utf-8").hex(" ")
-
     # adds a space every 2 chars.
     spacer = lambda s: " ".join(s[i : i + 2] for i in range(0, len(s), 2))
+
+    # Converts a string to its hexadecimal representation, return str.
+    convert_string_to_hex = lambda text: spacer(str(text.encode("utf-8").hex()))
 
     # Takes a hex sequence (str). Finds number of bytes, and pads it (into hex).
     pad = lambda hex_sequence, offset=0: str(hex(len(hex_sequence.split()) + offset))[
@@ -121,4 +114,4 @@ def message_generate(
 
 
 # DEBUG
-# print(message_generate("Hello World!", ":penguin:", "dnd", "custom", [5]))
+print(message_generate("Hello World!", ":penguin:", "dnd", "custom", [5]))

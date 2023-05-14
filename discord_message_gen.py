@@ -114,4 +114,4 @@ def message_generate(
 
 
 # DEBUG
-print(message_generate("Hello World!", ":penguin:", "dnd", "custom", [5]))
+# print(message_generate("Hello World!", ":pengpuin:", "dnd", "custom", [5]))

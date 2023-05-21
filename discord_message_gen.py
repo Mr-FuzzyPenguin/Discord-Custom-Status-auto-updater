@@ -1,6 +1,9 @@
 # base 64 conversions
 from base64 import b64encode
 
+# Dict to JSON conversions
+from json import dumps
+
 # For emoji support!
 import emoji
 
@@ -8,48 +11,97 @@ import emoji
 import time
 from datetime import datetime, timedelta
 
-def message_generate(
-    message, emoji_symbol, presence_choice, expiry=False, custom_expiry=False
-):
-    ## Useful hex-functions:
+## Helpful constants:
+# The presence table
+status = {"o": "online", "i": "idle", "d": "dnd", "a": "auto"}
 
-    # adds a space every 2 chars.
-    spacer = lambda s: " ".join(s[i : i + 2] for i in range(0, len(s), 2))
+# For time
+now = datetime.now()
+HOUR = 3600
 
-    # Converts a string to its hexadecimal representation, return str.
-    convert_string_to_hex = lambda text: spacer(str(text.encode("utf-8").hex()))
+## Useful functions on hex-operations:
+# adds a space every 2 chars.
+spacer = lambda s: " ".join(s[i : i + 2] for i in range(0, len(s), 2))
 
-    # Takes a hex sequence (str). Finds number of bytes, and pads it (into hex).
-    pad = lambda hex_sequence, offset=0: str(hex(len(hex_sequence.split()) + offset))[
-        2:
-    ].rjust(2, "0")
+# Converts a string to its hexadecimal representation, return str.
+convert_string_to_hex = lambda text: spacer(str(text.encode("utf-8").hex()))
 
-    ## Helpful constants:
-    # The presence table
-    presence = {
-        "online": "06 6f 6e 6c 69 6e 65 12",
-        "idle": "04 69 64 6c 65 12",
-        "dnd": "03 64 6e 64 12",
+# Takes a hex sequence (str). Finds number of bytes, and pads it (into hex).
+pad = lambda hex_sequence, offset=0: str(hex(len(hex_sequence.split()) + offset))[
+    2:
+].rjust(2, "0")
+
+### Default
+## Generating iso timestamp
+def timestamp_generate(timestamp):
+    # re-initialize time every time this function is run
+    now = datetime.now()
+
+    # Useful time sub-functions for iso-formatting:
+    # Time from now, returns iso-formatted string
+    time_from_now = lambda sec: (now + timedelta(seconds=sec)).isoformat()
+    # millisecond precision with iso-format
+    specific_time_control = lambda y, mo, d, h, m, s, ms: " ".join(
+        datetime(y, mo, d, h, m, s, ms).isoformat()
+    )
+
+    # pre-made settings
+    hour_from_now = time_from_now(HOUR)
+    four_hours_from_now = time_from_now(4 * HOUR)
+    half_hour_from_now = time_from_now(0.5 * HOUR)
+
+    # midnight of next day
+    midnight = specific_time_control(now.year, now.month, now.day + 1, 0, 0, 0, 0)
+
+    # Expiry table for choosing expiry time.
+    expiry_table = {
+        "hour": hour_from_now,
+        "four hours": four_hours_from_now,
+        "half hour": half_hour_from_now,
+        "midnight": midnight,
     }
 
-    # For time
+    # check time expiry in expiry_table
+    if type(timestamp) == str:
+        return None if timestamp not in expiry_table.keys() else expiry_table[timestamp]
+    elif type(timestamp) == list:
+        return specific_time_control(*timestamp)
+    elif type(timestamp) == int:
+        return time_from_now(timestamp)
+    else:
+        return None
+
+
+def message_generate(user_status, text, user_emoji='', expiry=None):
+    user_emoji=emoji.emojize(user_emoji)
+    utf16 = user_emoji.encode('utf-16-be')
+    hex_string = utf16.hex().lower()
+    formatted_string = "\\u".join(['']+f'{hex_string[0:4]} {hex_string[4:8]}'.split())
+    print(formatted_string)
+
+    altered_settings = {
+        "custom_status": {
+            "text": text,
+            "expires_at": timestamp_generate(expiry),
+            "emoji_id": None, # not supported, due to lack of testing with Nitro.
+            "emoji_name": formatted_string
+        }
+    }
+
+    # If not automatically adding status, don't change status.'
+    if user_status[0] != 'a':
+        altered_settings["status"] = status[user_status[0]]
+
+    # Will need to use json.dumps()
+    return dumps(altered_settings)
+
+
+### Protobuf
+## Generating UNIX to hex timestamp.
+def protobuf_timestamp_generate(timestamp):
+    # re-initialize time every time this function is run
     now = datetime.now()
-    HOUR = 3600
-
-    # emojis, constant offset, symbol handler, and utf8 -> hex formatter
-    emoji_offset = 6 if emoji_symbol else 0
-    emoji_symbol = (
-        emoji_symbol
-        if len(emoji_symbol) == 1
-        else (emoji.emojize(emoji_symbol, language="alias"))
-    )
-    hex_emoji = convert_string_to_hex(emoji_symbol) if emoji_symbol else ""
-
-    # Convert message to hex.
-    hexified_text = convert_string_to_hex(message)
-
-    ## Generating expiry timestamp.
-    # Useful time-functions:
+    # Useful time sub-functions for protobuf:
     # Time from now, returns datetime
     time_from_now = lambda sec: now + timedelta(seconds=sec)
     # Converts to unix with millisecond precision
@@ -81,37 +133,39 @@ def message_generate(
         "four hours": four_hours_from_now,
         "half hour": half_hour_from_now,
         "midnight": midnight,
-        "custom": None
-        if not custom_expiry
-        else specific_time_control(*custom_expiry)
-        if len(custom_expiry) != 1
-        else all_time_control(*custom_expiry),
     }
+    # check time expiry in expiry_table
+    if type(timestamp) == str:
+        return None if timestamp not in expiry_table.keys() else expiry_table[timestamp]
+    elif type(timestamp) == list:
+        return specific_time_control(*timestamp)
+    elif type(timestamp) == int:
+        return all_time_control(timestamp)
+    else:
+        return None
 
-    # remaining byte numeric representations.
-    n1 = pad(
-        hexified_text, len(presence_choice) + 8 + emoji_offset + int(bool(expiry)) * 9
+# Generate protobuf base64 encoding
+def protobuf_message_generate(user_status, text, user_emoji='', expiry=False):
+    # takes in field (hex value or bool), and hex string
+    # returns:
+    # field#, hex_string
+    add_field = lambda field, hex_string: " ".join(
+        ["" if not field else field, f"{len(hex_string.split()):0{2}x}", hex_string]
     )
-    n2 = pad(hexified_text, 2 + emoji_offset + int(bool(expiry)) * 9)
-    n3 = pad(hexified_text)
 
     return b64encode(
         bytes.fromhex(
-            " ".join(
-                [
-                    "5a %s" % n1,  # message length
-                    "0a 0%d" % (len(presence_choice) + 2),  # preesence length
-                    "0a %s" % presence[presence_choice],  # presennce
-                    n2,  # (remaining bits)
-                    "0a %s" % n3,  # custom status length
-                    hexified_text,  # custom status in hex.
-                    "%s" % ("1a 04 " + hex_emoji if emoji_symbol else ""),
-                    "%s" % ("21" + expiry_table[expiry] + "00 00" if expiry else ""),
-                ]
+            add_field("5a",
+                add_field("0a", add_field("0a", convert_string_to_hex(status[user_status])))
+                + " 12 "
+                + add_field(False,
+                    add_field("0a", convert_string_to_hex(text))
+                    + " "
+                    + add_field("1a",
+                        convert_string_to_hex(emoji.emojize(user_emoji, language="alias")),
+                    ) * int(bool(user_emoji)),
+                )
+                + (f" 21 {protobuf_timestamp_generate(expiry)} 00 00") * int(bool(expiry)),
             )
         )
     ).decode()
-
-
-# DEBUG
-# print(message_generate("Hello World!", ":pengpuin:", "dnd", "custom", [5]))

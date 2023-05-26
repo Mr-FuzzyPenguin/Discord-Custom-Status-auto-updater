@@ -1,5 +1,8 @@
-# Web Requests
-import requests
+# HTTP client to switch of requests
+import http.client
+
+# JSON read
+from json import loads
 
 # Disord message base64 module
 import discord_message_gen
@@ -7,57 +10,141 @@ import discord_message_gen
 # To prevent spam, and handling ratelimitting
 from time import sleep
 
-# Constants
+# argparse for front-end
+import argparse
 
-# Change your directory! This just happened to be where I put the file(s)!
-directory = "/home/penguin/Desktop/Code/discord-shenanigans/discord-status-updater/project"
+# pathlib for file paths
+import pathlib
 
-# Token
-with open(directory + "/tokens/token", "r") as f:
-    token = f.read().replace("\n", "")
+
+# Argparse and arguments
+# Formatting
+class CustomFormatter(argparse.HelpFormatter):
+    def _format_action_invocation(self, action):
+        self._max_help_position = 50
+        if not action.option_strings:
+            (metavar,) = self._metavar_formatter(action, action.dest)(1)
+            return metavar
+        else:
+            parts = []
+            # if the Optional doesn't take a value, format is:
+            #    -s, --long
+            if action.nargs == 0:
+                parts.extend(action.option_strings)
+
+            # if the Optional takes a value, format is:
+            #    -s ARGS, --long ARGS
+            # change to
+            #    -s, --long ARGS
+            else:
+                default = action.dest.upper()
+                args_string = self._format_args(action, default)
+                for option_string in action.option_strings:
+                    # parts.append('%s %s' % (option_string, args_string))
+                    parts.append("%s" % option_string)
+                parts[-1] += " %s" % args_string
+            return ", ".join(parts)
+
+
+parser = argparse.ArgumentParser(
+    prog="Discord Status Updater",
+    description="This simple-to-use program will update your Discord Custom Status.",
+    formatter_class=CustomFormatter,
+)
+
+# Arguments
+parser.add_argument(
+    "-t",
+    "--token",
+    metavar="TOKEN PATH",
+    required=True,
+    help="Path to token file.",
+    type=pathlib.Path,
+)
+parser.add_argument(
+    "-c",
+    "--comments",
+    metavar="COMMENTS PATH",
+    required=True,
+    help="Path to comments file.",
+    type=pathlib.Path,
+)
+parser.add_argument(
+    "-e",
+    "--emoji",
+    metavar="EMOJI PATH",
+    required=False,
+    help="Path to emoji file. (Must have same number of lines as comments file).",
+    type=pathlib.Path,
+)
+parser.add_argument(
+    "-s",
+    "--status",
+    choices=["online", "o", "idle", "i", "dnd", "d", "auto", "a"],
+    required=True,
+    help="Status option [(o)nline/(i)dle/(d)nd/(a)uto]",
+)
+parser.add_argument(
+    "-d",
+    "--delay",
+    required=False,
+    help="Set a manual delay for updating.",
+    type=int
+)
+parser.add_argument(
+    "-a",
+    "--api",
+    required=True,
+    choices=["proto", "p", "default", "d", "both", "b"],
+    help="Choose api option [(p)roto/(d)efault/(b)oth]",
+    type=str,
+)
+parser.add_argument(
+    "-v",
+    "--verbose",
+    action="store_true",
+    required=False,
+    help="Enable verbose output.",
+)
+
+# Convert arguments to dictionary
+args = parser.parse_args().__dict__
 
 # print() becomes silenced
-quiet = False
-if quiet:
+if not (args["verbose"]):
     print = lambda *args: None
 
-# Appear online, idle, or dnd.
-presence_choice = input("online/idle/dnd/auto[blank]\n")
+# Read token file
+with open(args["token"]) as f:
+    token = f.read().replace("\n", "")
 
+# Place a file containing messages
+with open(args["comments"]) as f:
+    messages = [line.rstrip() for line in f]
 
-def acquire_presence():
-    global presence_choice
-    if presence_choice in ["", "auto"]:
-        returned_settings = requests.get(
-            "https://discord.com/api/v9/users/@me/settings",
-            headers={"Authorization": token},
-        ).json()["status"][0]
-        return returned_settings
-    else:
-        print("Always appearing {}".format(presence_choice))
-        return presence_choice[0]
-
-
-while True:
-    # re-read the file after going through the entire list. To update if the file changed.
-
-    # Place a file containing messages
-    with open(directory + "/comments/donated-comments") as f:
-        messages = [line.rstrip() for line in f]
-    # Place a file containing emojis, or name of emojis.
-    with open(directory + "/comments/donated-emoji") as f:
+# Place a file containing emojis, or name of emojis.
+if args["emoji"]:
+    with open(args["emoji"]) as f:
         emojis = [line.strip("\n") for line in f]
+        emojis += ["" for _ in range(len(messages) - len(emojis))]
+    print("Using emojis.")
+else:
+    emojis = ["" for _ in range(len(messages))]
+    print("Not using emojis.")
 
-    # Examples:
-    # [["custom", [2]]] # 2 seconds from time of PATCH to expiry
-    # [["custom" [2023, 05, 11, 03, 14, 15, 09]]] # expires at a specific time!
-    # [["hour", None]] # will expire 1 hour from time of patch. Second item set to None.
-    # [["four hours", None]] # four hours expiry
-    time = [None for _ in range(len(messages))]
+# Variables
+# Argument handlers
+args["api"] = args["api"][0]
+args["status"] = args["status"][0]
 
-    for message, emoji, expiry in zip(messages, emojis, time):
-        # Required headers
-        headers = {
+# Constant
+status = {"o": "online", "i": "idle", "d": "dnd", "a": "auto"}
+
+api = {"p": "protobuf", "d": "default", "b": "both"}
+
+# Connections
+conn = http.client.HTTPSConnection("discord.com")
+headers = {
             "authority": "discord.com",
             "accept": "*/*",
             "accept-language": "en-US",
@@ -66,54 +153,84 @@ while True:
             "x-discord-locale": "en-US",
         }
 
-        # Forming message body to send
-        output = discord_message_gen.protobuf_message_generate(
-            acquire_presence(), message, emoji, expiry
+print(
+    "Switching to {} status indefinitely\nUsing {} api".format(
+        status[args["status"]], api[args["api"]]
+    )
+)
+
+# Helper functions
+# PAYLOAD
+def generate_payload(api, true_status, message, emoji):
+    if api == 'p':
+        return """{"settings":"%s"}"""%(
+            discord_message_gen.protobuf_message_generate(true_status, message, emoji)
         )
-        json_data = {"settings": output}
+    else:
+        # "custom_status": {"text": "Hello from the other siiiiiiiiiide", "expires_at": null, "emoji_id": null, "emoji_name": null}
+        return discord_message_gen.message_generate(true_status, message, emoji)
 
-        # Make the request
-        response = requests.patch(
-            "https://discord.com/api/v9/users/@me/settings-proto/1",
-            headers=headers,
-            json=json_data,
+# STATUS
+def get_status():
+    if args["status"] == "a":
+        conn = http.client.HTTPSConnection("discord.com")
+        conn.request(
+            "GET",
+            "/api/v9/users/@me/settings",
+            headers=headers
         )
+        res = conn.getresponse()
+        data = res.read()
+        return loads(data.decode("utf-8"))["status"][0]
+    else:
+        return args["status"]
 
-        # Check if failed due to ratelimit
-        # If it failed, wait the amount of time needed (plus 1 second to be safe)
-        if "retry_after" in response.json().keys():
-            response = requests.patch(
-                "https://discord.com/api/v9/users/@me/settings",
-                headers=headers,
-                json={"custom_status": {"text":message, "emoji_name": emoji}},
-            )
-            # Success
-            print("Failed, using backup API", response, message)
-            """
-            retry_after = int(response.json()["retry_after"])
-            print(
-                "We are being ratelimitted. Retrying! Waiting %d seconds! %s %s"
-                % (
-                    retry_after + 1,
-                    response,
-                    output,
-                )
-            )
-            # Wait out the ratelimit.
-            sleep(1 + retry_after)
+delay = args["delay"] if args["delay"] and args["delay"] >= 1 else 1
+print(f"Delay is {delay} seconds")
+while True:
+    for message, emoji in zip(messages, emojis):
 
-            # Make a new response after waiting.
-            response = requests.patch(
-                "https://discord.com/api/v9/users/@me/settings-proto/1",
-                headers=headers,
-                json=json_data,
-            )
-            # Success
-            print(response, output)
-            """
+        # If automatic, use protobuf (usually).
+        if args["api"] == 'b':
+            payload = generate_payload('p', get_status(), message, emoji)
         else:
-            print(response, output)
+            payload = generate_payload(args["api"], get_status(), message, emoji)
+            print("Payload Generated.")
 
-        # Change sleep() if you have a specific expiry and update (let's say you wanted a switch every hour.)
-        # Ideas: You can have the hands of a clock change every hour or so.
-        sleep(3)
+        # Make a http connection towards protobuf (if not forced to default.)
+        conn.request("PATCH", "/api/v9/users/@me/settings%s"%("-proto/1" if args["api"] != 'd' else ''), payload, headers)
+        print(f"Sent: {payload}", sep='')
+
+        res = conn.getresponse()
+        data = res.read()
+
+        decoded_data = loads(data.decode("utf-8"))
+        print(f"Received: {res.status}, {decoded_data}")
+
+        sleep(delay)
+
+        # Rate limitted
+        if "retry_after" in decoded_data.keys():
+            print("Rate-limitted: ", end='')
+            wait_time = decoded_data["retry_after"]
+            if args["api"] == 'p':
+                print(f"Locked on protobuf. Waiting {wait_time}. Resending {payload}")
+                sleep(wait_time)
+                conn.request("PATCH", "/api/v9/users/@me/settings-proto/1", payload, headers)
+                sleep(wait_time)
+            elif args["api"] == 'd':
+                print(f"Locked on default. Waiting {wait_time}. Resending {payload}"%wait_time)
+                sleep(wait_time)
+                conn.request("PATCH", "/api/v9/users/@me/settings", payload, headers)
+            else:
+                payload = generate_payload('d', get_status(), message, emoji)
+                print(f"Protobuf is rate-limitted. Automatically switching to default api. Sending new payload: {payload}")
+                conn.request("PATCH", "/api/v9/users/@me/settings", payload, headers)
+
+            res = conn.getresponse()
+            data = res.read()
+            decoded_data = loads(data.decode("utf-8"))
+            print(f"After rate-limit, received: {res.status}")
+
+
+# print(args["token"], args["comments"], args["status"], args["api"])

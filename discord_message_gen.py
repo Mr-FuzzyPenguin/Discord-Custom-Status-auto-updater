@@ -74,21 +74,17 @@ def timestamp_generate(timestamp):
 
 def message_generate(user_status, text, user_emoji='', expiry=None):
     user_emoji=emoji.emojize(user_emoji)
-    utf16 = user_emoji.encode('utf-16-be')
-    hex_string = utf16.hex().lower()
-    formatted_string = "\\u".join(['']+f'{hex_string[0:4]} {hex_string[4:8]}'.split())
-    print(formatted_string)
 
     altered_settings = {
         "custom_status": {
             "text": text,
             "expires_at": timestamp_generate(expiry),
             "emoji_id": None, # not supported, due to lack of testing with Nitro.
-            "emoji_name": formatted_string
+            "emoji_name": user_emoji
         }
     }
 
-    # If not automatically adding status, don't change status.'
+    # If not automatically adding status, don't change status.
     if user_status[0] != 'a':
         altered_settings["status"] = status[user_status[0]]
 

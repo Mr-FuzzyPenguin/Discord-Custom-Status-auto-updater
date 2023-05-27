@@ -112,7 +112,7 @@ args = parser.parse_args().__dict__
 
 # print() becomes silenced
 if not (args["verbose"]):
-    print = lambda *args: None
+    print = lambda *values, sep=None, end=None, file=None, flush=None: None
 
 # Read token file
 with open(args["token"]) as f:
@@ -185,7 +185,7 @@ def get_status():
     else:
         return args["status"]
 
-delay = args["delay"] if args["delay"] and args["delay"] >= 1 else 1
+delay = args["delay"] if args["delay"] and args["delay"] >= 5 else 5
 print(f"Delay is {delay} seconds")
 while True:
     for message, emoji in zip(messages, emojis):
